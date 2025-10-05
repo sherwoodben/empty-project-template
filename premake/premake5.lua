@@ -312,7 +312,7 @@ Be sure to run the 'configure' action prior to a 'build' action!]]
       arr[idx] = part -- set the current index of the array to the string
       size = size + 1 -- increment the size counter
     end 
-    cv[k] = size > 1 and arr or arr[1] -- assign the value in the cv "struct"
+    cv[k] = arr -- assign the value in the cv "struct"
   end
   
   -- a few extra values which do not come from the config file...
@@ -364,7 +364,12 @@ function set_project_defaults()
   }
 
   -- all projects (in this solution/workspace) will include the library include directories
-  table.foreachi(cv.libraryIncludeDirs, includedirs)
+  for idx, val in ipairs(cv.libraryIncludeDirs) do
+    if val ~= "" then
+      printf("Adding library include directory: %s", val)
+      includedirs(val)
+    end
+  end
   -- includedirs(contextVariables.libraryIncludeDirs)
 
   -- all projects (in this solution/workspace) will include the files in the /include/ and /src/
@@ -377,11 +382,21 @@ function set_project_defaults()
   }
 
   -- all projects (in this solution/workspace) need to know where to find library binaries
-  table.foreachi(cv.libraryBinaryDirs, libdirs)
+  for idx, val in ipairs(cv.libraryBinaryDirs) do
+    if val ~= "" then
+      printf("Adding library binary directory: %s", val)
+      libdirs(val)
+    end
+  end
   -- libdirs(contextVariables.libraryBinaryDirs)
 
   -- all projects (in this solution/workspace) need to link the libraries
-  table.foreachi(cv.libraries, links)
+  for idx, val in ipairs(cv.libraries) do
+    if val ~= "" then
+      printf("Linking: %s", val)
+      links(val)
+    end
+  end
   -- links(contextVariables.libraries)
 end
 
@@ -448,20 +463,40 @@ function make_workspace()
   
   -- Set the available configurations
   configurations{"Debug", "Release",}
-  table.foreachi(cv.additionalConfigurations, configurations) -- from config value
+  for idx, val in ipairs(cv.additionalConfigurations) do
+    if val ~= "" then
+      printf("Adding configuration: %s", val)
+      configurations(val)
+    end
+  end
   
   -- Set the available platforms
   platforms{"Windows",}
-  table.foreachi(cv.additionalPlatforms, platforms) -- from config value
-  
+  for idx, val in ipairs(cv.additionalPlatforms) do
+    if val ~= "" then
+      printf("Adding platform: %s", val)
+      platforms(val)
+    end
+  end
+
   -- Debug preprocessor definitions
   filter "configurations:Debug*"
     defines{"DEBUG",}
-    table.foreachi(cv.debugDefinitions, defines) -- from config value
+    for idx, val in ipairs(cv.debugDefinitions) do
+      if val ~= "" then
+        printf("Adding preprocessor definition in DEBUG mode: %s", val)
+        defines(val)
+      end
+    end
   -- Release preprocessor definitions
   filter "configurations:Release*"
     defines{"RELEASE",}
-    table.foreachi(cv.releaseDefinitions, defines) -- from config value
+    for idx, val in ipairs(cv.releaseDefinitions) do
+      if val ~= "" then
+        printf("Adding preprocessor definition in RELEASE mode: %s", val)
+        defines(val)
+      end
+    end
   filter{}
 
   -- user provided filters
@@ -499,21 +534,21 @@ function make_main_project()
     set_project_defaults()
 
     -- set the project type based on the config value
-    if (string.lower(cv.projectType) == "consoleapp") then kind "ConsoleApp"
-    elseif (string.lower(cv.projectType) == "windowedapp") then kind "WindowedApp"
-    elseif (string.lower(cv.projectType) == "staticlib") then kind "StaticLib"
-    elseif (string.lower(cv.projectType) == "sharedlib") then kind "SharedLib"
-    elseif (string.lower(cv.projectType) == "app") then
+    if (string.lower(cv.projectType[1]) == "consoleapp") then kind "ConsoleApp"
+    elseif (string.lower(cv.projectType[1]) == "windowedapp") then kind "WindowedApp"
+    elseif (string.lower(cv.projectType[1]) == "staticlib") then kind "StaticLib"
+    elseif (string.lower(cv.projectType[1]) == "sharedlib") then kind "SharedLib"
+    elseif (string.lower(cv.projectType[1]) == "app") then
       filter "configurations:Debug*"
         kind "ConsoleApp"
       filter "configurations:Release*"
         kind "WindowedApp"
       filter{}
     end
-    if (string.find(string.lower(cv.projectType), "lib")) then defines{ "bNO_ENTRY_POINT", } end
+    if (string.find(string.lower(cv.projectType[1]), "lib")) then defines{ "bNO_ENTRY_POINT", } end
 
     -- only do the following if we're generating tests...
-    if (string.lower(cv.buildTests) == "true") then
+    if (string.lower(cv.buildTests[1]) == "true") then
       -- the tests project is an application, so linking it just creates a build dependency
       links {"tests",}
   
@@ -534,14 +569,24 @@ function make_main_project()
       withReplacedTokens = string.gsub(withReplacedTokens, "%$CONFIG", "%{cfg.buildcfg}")
       prebuildCommands(withReplacedTokens)
     end
-    table.foreachi(cv.prebuildCommands, prebuildcommands) -- from config value
+    for idx, val in ipairs(cv.prebuildCommands) do
+      if val ~= "" then
+        printf("Adding prebuild command: %s", val)
+        interpret_and_add_to_prebuildcommands(val)
+      end
+    end
 
     local interpret_and_add_to_postbuildcommands = function(command)
       local withReplacedTokens = string.gsub(command, "%$PLATFORM", "%{cfg.platform}")
       withReplacedTokens = string.gsub(withReplacedTokens, "%$CONFIG", "%{cfg.buildcfg}")
       postbuildCommands(withReplacedTokens)
     end
-    table.foreachi(cv.postbuildCommands, postbuildcommands) -- from config value
+    for idx, val in ipairs(cv.postbuildCommands) do
+      if val ~= "" then
+        printf("Adding postbuild command: %s", val)
+        interpret_and_add_to_postbuildcommands(val)
+      end
+    end
 end
 
 --[[
@@ -563,22 +608,34 @@ function build_workspace_and_projects()
   if (err ~= nil) then return end
 
   -- first, set up the workspace
+  printf("Configuring workspace.")
   make_workspace()
   
   -- then generate the main project
+  printf("Configuring the main project.")
   make_main_project()
 
   -- make any other projects (i.e. dependencies) we build
   group "Also Build"
-  table.foreachi(cv.additionalProjectDirs, include) -- from config value
+  printf("Configuring dependencies.")
+  for idx, val in ipairs(cv.additionalProjectDirs) do
+    printf("Including additional premake script: %s", val)
+    include(val)
+  end
 
   -- make the test application (if we're building tests)
   group "Tests"
-  if (string.lower(cv.buildTests) == "true") then make_test_project() end
+  if (string.lower(cv.buildTests[1]) == "true") then
+    printf("Configuring test application.")
+    make_test_project()
+  end
   
   -- make the examples (if we're building examples)
   group "Examples"
-  if (string.lower(cv.buildExamples) == "true") then make_examples() end
+  if (string.lower(cv.buildExamples[1]) == "true") then
+    printf("Configuring example application(s).")
+    make_examples()
+  end
 end
 
 --[[
