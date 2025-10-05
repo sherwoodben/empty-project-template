@@ -8,8 +8,6 @@ The "clean" option has also been fleshed out in the provided "premake.lua" file;
 
 ## known issues
 
-If wildcard matching is used in the library include directories, it seems premake/Visual Studio might get confused and cannot actually locate the directories to include. This means each individual directory must be provided rather than using wildcard matching to match all include directories. Slightly inconvenient, but not the end of the world.
-
 The "configuration script" isn't 100% foolproof. It might be required to do some manual editing of the "premake5.lua" file in certain circumstances. The "config.json" file may be easier to edit by hand as well, once the expected inputs are understood.
 
 Better documentation for the setup/configuration of a project using this template is expected to be provided eventually. However, the ideas presented in this README and the comments in the "premake5.lua" file *should* be enough to provide a user with what they need to know to hack something together.
