@@ -62,24 +62,6 @@ function project_filters()
     ]]
 end
 
-function make_examples()
-  --[[ Would look something like this...
-      project "example1"
-        set_project_defaults()
-        kind "PROJECT TYPE"
-
-        files{"../examples/example1/**.*"}
-
-      project "example2"
-        set_project_defaults()
-        kind "PROJECT TYPE"
-
-        files{"../examples/example2/**.*"}
-
-      ...
-    ]]
-end
-
 --[[
 ##########################################################################################
     "CONTEXT VARIABLES" -- useful for getting/setting/manipulating context values
@@ -696,7 +678,7 @@ function build_workspace_and_projects()
   group "Examples"
   if (string.lower(cv.buildExamples[1]) == "true") then
     printf("Configuring example application(s).")
-    make_examples()
+    include("../examples/premake/")
   end
 end
 
