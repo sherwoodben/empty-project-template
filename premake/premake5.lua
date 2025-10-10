@@ -207,6 +207,15 @@ Generate examples?
   - Set to true to build example applications and false to not.]],
     optional = true,
     default = "true" },
+  { -- autoversioning flag
+    name = "autoVersion",
+    value,
+    prompt = [[
+Utilize auto-versioning?
+  - Set to true to utilize git tags to automatically generate project version numbers.]],
+    optional = true,
+    default = "true" },
+
 }
 
 -- alias the long name to something a bit shorter
@@ -230,19 +239,6 @@ local cvMetadata = contextVariablesMetadata
   a single string or an array of strings should hopefully be clear from context!
 --]]
 contextVariables = {
-  workspaceName,
-  projectName,
-  projectType,
-  debugDefinitions,
-  releaseDefinitions,
-  additionalConfigurations,
-  additionalPlatforms,
-  additionalProjectDirs,
-  libraries,
-  libraryIncludeDirs,
-  libraryBinaryDirs,
-  prebuildCommands,
-  postbuildCommands,
 }
 
 -- alias the long name to something a bit shorter
@@ -509,6 +505,68 @@ end
 
 --[[
 ##########################################################################################
+  AUTOVERSION FILE POPULATION function
+##########################################################################################
+
+    creates an "autoversion.h" file in the '../src/' directory, populated with values
+    derived from the git tag/default values if the information cannot be found
+
+    at this point, to update the values in the generated autoversion file one must run the
+    premake "build" action to rebuild the workspace
+--]]
+
+function populate_autoversion_file()
+  -- read the contents of the autoversion.h input file
+  local autoversion_content = io.readfile("../tools/autoversion.h.in")
+
+  -- attempt to get the git tag for the folder
+  local git_tag, errorCode = os.outputof("git describe --long --dirty --tags")
+
+  -- if the tag was found, populate the input files with the data in the tag
+  if (errorCode == 0) then
+    print("Git tag: ", git_tag)
+    parts = string.explode(git_tag, "-", true)
+    local dirtyTag = ""
+    if (tonumber(parts[2]) > 0) then
+      dirtyTag = "+"
+    end
+        
+    autoversion_content = autoversion_content:gsub("@VERSION_STRING@", parts[1] .. dirtyTag)
+    versionNums = string.explode(parts[1], ".", true)
+    autoversion_content = autoversion_content:gsub("@VERSION_MAJOR@", tostring(versionNums[1]))
+    autoversion_content = autoversion_content:gsub("@VERSION_MINOR@", tostring(versionNums[2]))
+    autoversion_content = autoversion_content:gsub("@VERSION_PATCH@", tostring(versionNums[3]))
+    autoversion_content = autoversion_content:gsub("@COMMIT_HASH@", parts[3])
+
+  -- if the tag was not found, populate the input files with default values
+  else
+    print("Warning: `git describe --long --dirty --tags` failed with error code", errorCode, git_tag)
+    print("Populating files with default values which may not reflect the true version number.")
+    autoversion_content = autoversion_content:gsub("@VERSION_STRING@", "0.0.0")
+    autoversion_content = autoversion_content:gsub("@VERSION_MAJOR@", "0")
+    autoversion_content = autoversion_content:gsub("@VERSION_MINOR@", "0")
+    autoversion_content = autoversion_content:gsub("@VERSION_PATCH@", "0")
+    autoversion_content = autoversion_content:gsub("@COMMIT_HASH@", "")
+  
+  end
+
+  -- be sure to update the project name so the macros actually make sense!
+  -- (replace any spaces or dashes with underscores)
+  autoversion_content = autoversion_content:gsub("@PROJECT_NAME@", cv.projectName:gsub("[ -]", "_"):upper())
+
+  -- write the autoversion.h file to the ../src/ directory
+  local f, err = os.writefile_ifnotequal(autoversion_content, path.join("../src/", "autoversion.h"))
+  if (f == 0) then
+    print("autoversion.h is already up to date.")
+  elseif (f < 0) then
+    error(err, 0)
+  elseif (f > 0) then
+    print("Generated autoversion.h...")
+  end
+end
+
+--[[
+##########################################################################################
   MAIN PROJECT configuration function
 ##########################################################################################
 
@@ -547,6 +605,10 @@ function make_main_project()
     end
     if (string.find(string.lower(cv.projectType[1]), "lib")) then defines{ "bNO_ENTRY_POINT", } end
 
+    -- only do the following if we're utilizing autoversioning...
+    if (string.lower(cv.autoVersion[1]) == "true") then
+      populate_autoversion_file()
+    end
     -- only do the following if we're generating tests...
     if (string.lower(cv.buildTests[1]) == "true") then
       -- the tests project is an application, so linking it just creates a build dependency
